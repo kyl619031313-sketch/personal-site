@@ -1,0 +1,9 @@
+---
+import QuietCopy from '../components/QuietCopy.astro';
+import Layout from '../layouts/MainLayout.astro';
+import copy from '../data/copy';
+import CTA from '../components/sections/misc/ContactSection.astro';
+import Services from '../components/sections/features/FeaturesGeneral.astro';
+const p = copy.pages.services;
+---
+<Layout title={p.title} description={p.description}><section class="page-hero" data-reveal><p class="eyebrow"><QuietCopy value={p.eyebrow} /></p><h1><QuietCopy value={p.heading} /></h1><p class="lead"><QuietCopy value={p.intro} /></p></section><Services detailed /><section class="section"><h2 data-reveal><QuietCopy value={copy.process.title} /></h2><div class="cards process">{copy.process.steps.map((step,i) => <article data-reveal><span class="number">0{i+1}</span><h3><QuietCopy value={step.title} /></h3><p><QuietCopy value={step.text} /></p></article>)}</div></section><CTA /></Layout>

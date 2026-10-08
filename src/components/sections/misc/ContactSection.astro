@@ -1,0 +1,6 @@
+---
+import QuietCopy from '../../QuietCopy.astro';
+import { internalHref } from '../../../utils/links';
+import copy from '../../../data/copy';
+---
+<section class="contact-cta" data-reveal><div><p class="eyebrow"><QuietCopy value={copy.cta.label} /></p><h2><QuietCopy value={copy.cta.title} /></h2><p><QuietCopy value={copy.cta.description} /></p></div><a class="button light" href={internalHref('/contact')}><QuietCopy value={copy.cta.button} /><span aria-hidden="true">↗</span></a></section>

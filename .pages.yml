@@ -1,0 +1,305 @@
+media:
+  input: public/images
+  output: /images
+content:
+  - name: content
+    label: 网站内容
+    type: file
+    path: src/data/zh-CN.json
+    format: json
+    fields:
+      - name: site
+        label: 站点
+        type: object
+        fields:
+          - name: name
+            label: 名称
+            type: string
+          - name: title
+            label: 标题
+            type: text
+          - name: description
+            label: 描述
+            type: text
+          - name: skip
+            label: 跳过导航文字
+            type: string
+          - name: footer
+            label: 页脚文字
+            type: string
+          - name: note
+            label: 备注
+            type: string
+          - name: copyright
+            label: 版权文字
+            type: string
+      - name: nav
+        label: 站点导航
+        type: object
+        list:
+          collapsible:
+            collapsed: true
+            summary: "{label}"
+        fields:
+          - name: label
+            label: 标签
+            type: string
+          - name: href
+            label: 链接路径
+            type: string
+      - name: home
+        label: 首页
+        type: object
+        fields:
+          - name: eyebrow
+            label: 上方短文
+            type: string
+          - name: title
+            label: 标题
+            type: text
+          - name: description
+            label: 描述
+            type: text
+          - name: primary
+            label: 主要按钮
+            type: string
+          - name: secondary
+            label: 次要按钮
+            type: string
+          - name: panelTitle
+            label: 面板标题
+            type: text
+          - name: panelLabel
+            label: 面板标签
+            type: string
+          - name: platforms
+            label: 平台文字
+            type: string
+          - name: whoLabel
+            label: 关于区标签
+            type: string
+          - name: whoTitle
+            label: 关于区标题
+            type: string
+          - name: whoText
+            label: 关于区正文
+            type: text
+          - name: whoLink
+            label: 关于区链接文字
+            type: string
+          - name: servicesLabel
+            label: 服务区标签
+            type: string
+          - name: servicesTitle
+            label: 服务区标题
+            type: string
+          - name: casesLabel
+            label: 案例区标签
+            type: string
+          - name: casesTitle
+            label: 案例区标题
+            type: string
+          - name: casesNote
+            label: 案例区备注
+            type: string
+      - name: services
+        label: 服务
+        type: object
+        list:
+          collapsible:
+            collapsed: true
+            summary: "{title}"
+        fields:
+          - name: title
+            label: 标题
+            type: text
+          - name: description
+            label: 描述
+            type: text
+          - name: items
+            label: 服务项目
+            type: string
+            list: true
+      - name: cases
+        label: 案例
+        type: object
+        list:
+          collapsible:
+            collapsed: true
+            summary: "{title}"
+        fields:
+          - name: title
+            label: 标题
+            type: text
+          - name: tag
+            label: 分类标签
+            type: string
+          - name: description
+            label: 描述
+            type: text
+          - name: metric
+            label: 指标
+            type: string
+          - name: metricLabel
+            label: 指标说明
+            type: string
+          - name: detail
+            label: 详情
+            type: string
+      - name: faq
+        label: 常见问题
+        type: object
+        fields:
+          - name: title
+            label: 标题
+            type: text
+          - name: subTitle
+            label: 副标题
+            type: string
+          - name: faqs
+            label: 问题列表
+            type: object
+            list:
+              collapsible:
+                collapsed: true
+                summary: "{question}"
+            fields:
+              - name: question
+                label: 问题
+                type: string
+              - name: answer
+                label: 回答
+                type: text
+      - name: cta
+        label: 首页联系区
+        type: object
+        fields:
+          - name: label
+            label: 标签
+            type: string
+          - name: title
+            label: 标题
+            type: text
+          - name: description
+            label: 描述
+            type: text
+          - name: button
+            label: 按钮文字
+            type: string
+      - name: pages
+        label: 页面内容
+        type: object
+        fields:
+          - name: services
+            label: 服务
+            type: object
+            fields:
+              - name: title
+                label: 标题
+                type: text
+              - name: description
+                label: 描述
+                type: text
+              - name: eyebrow
+                label: 上方短文
+                type: string
+              - name: heading
+                label: 页面主标题
+                type: text
+              - name: intro
+                label: 简介
+                type: text
+          - name: about
+            label: 关于
+            type: object
+            fields:
+              - name: title
+                label: 标题
+                type: text
+              - name: description
+                label: 描述
+                type: text
+              - name: eyebrow
+                label: 上方短文
+                type: string
+              - name: heading
+                label: 页面主标题
+                type: text
+              - name: intro
+                label: 简介
+                type: text
+              - name: body
+                label: 正文第一段
+                type: text
+              - name: body2
+                label: 正文第二段
+                type: text
+              - name: valuesTitle
+                label: 工作方式标题
+                type: string
+              - name: values
+                label: 工作方式列表
+                type: string
+                list: true
+          - name: contact
+            label: 联系
+            type: object
+            fields:
+              - name: title
+                label: 标题
+                type: text
+              - name: description
+                label: 描述
+                type: text
+              - name: eyebrow
+                label: 上方短文
+                type: string
+              - name: heading
+                label: 页面主标题
+                type: text
+              - name: intro
+                label: 简介
+                type: text
+              - name: emailLabel
+                label: 邮件标签
+                type: string
+              - name: email
+                label: 电子邮件地址
+                type: string
+              - name: telegramLabel
+                label: 通讯标签
+                type: string
+              - name: telegram
+                label: Telegram 用户名
+                type: string
+              - name: note
+                label: 备注
+                type: string
+              - name: prepareTitle
+                label: 准备信息标题
+                type: string
+              - name: prepare
+                label: 准备信息列表
+                type: string
+                list: true
+      - name: process
+        label: 服务流程
+        type: object
+        fields:
+          - name: title
+            label: 标题
+            type: text
+          - name: steps
+            label: 步骤列表
+            type: object
+            list:
+              collapsible:
+                collapsed: true
+                summary: "{title}"
+            fields:
+              - name: title
+                label: 标题
+                type: text
+              - name: text
+                label: 正文
+                type: text

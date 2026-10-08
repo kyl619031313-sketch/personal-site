@@ -1,0 +1,5 @@
+---
+interface Props { value?: string; }
+const { value } = Astro.props;
+---
+{value?.trim() ? value : <span class="cms-placeholder">在后台填写</span>}

@@ -1,0 +1,7 @@
+---
+import QuietCopy from '../../QuietCopy.astro';
+import { internalHref } from '../../../utils/links';
+import copy from '../../../data/copy';
+const h = copy.home;
+---
+<section class="hero grid-two"><div data-reveal><p class="eyebrow"><QuietCopy value={h.eyebrow} /></p><h1><QuietCopy value={h.title} /></h1><p class="lead"><QuietCopy value={h.description} /></p><div class="actions"><a class="button" href={internalHref('/contact')}><QuietCopy value={h.primary} /><span aria-hidden="true">↗</span></a><a class="text-link" href={internalHref('/services')}><QuietCopy value={h.secondary} /><span aria-hidden="true">→</span></a></div></div><div class="hero-panel" data-reveal><div class="panel-top"><span><QuietCopy value={h.panelLabel} /></span><span aria-hidden="true">↗</span></div><div class="orb" aria-hidden="true"></div><h2><QuietCopy value={h.panelTitle} /></h2><p><QuietCopy value={h.platforms} /></p></div></section>

@@ -1,0 +1,8 @@
+---
+import QuietCopy from '../../QuietCopy.astro';
+import { internalHref } from '../../../utils/links';
+import copy from '../../../data/copy';
+interface Props { detailed?: boolean; }
+const { detailed = false } = Astro.props;
+---
+<section class="section"><div class="section-heading" data-reveal><p class="eyebrow"><QuietCopy value={copy.home.servicesLabel} /></p><h2><QuietCopy value={copy.home.servicesTitle} /></h2></div><div class="cards">{copy.services.map((service, i) => <article class="service-card" data-reveal><span class="number">0{i + 1}</span><h3><QuietCopy value={service.title} /></h3><p><QuietCopy value={service.description} /></p>{detailed && <ul>{service.items.map(item => <li><QuietCopy value={item} /></li>)}</ul>}<a class="text-link" href={internalHref(detailed ? '/contact' : '/services')}><QuietCopy value={detailed ? copy.home.primary : copy.home.secondary} /><span aria-hidden="true">↗</span></a></article>)}</div></section>

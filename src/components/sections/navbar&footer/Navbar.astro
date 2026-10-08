@@ -1,0 +1,6 @@
+---
+import QuietCopy from '../../QuietCopy.astro';
+import { internalHref } from '../../../utils/links';
+import copy from '../../../data/copy';
+---
+<header class="navbar"><a class="brand" href={internalHref('/')} aria-label={copy.site.title || undefined}><QuietCopy value={copy.site.name} /><span class="brand-dot"></span></a><nav aria-label="主导航">{copy.nav.map(link => <a href={internalHref(link.href)} aria-current={Astro.url.pathname === internalHref(link.href) ? 'page' : undefined}><QuietCopy value={link.label} /></a>)}</nav><a class="nav-contact" href={internalHref('/contact')}><QuietCopy value={copy.home.primary} /><span aria-hidden="true">↗</span></a></header>

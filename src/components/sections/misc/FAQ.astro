@@ -1,0 +1,5 @@
+---
+import QuietCopy from '../../QuietCopy.astro';
+import copy from '../../../data/copy';
+---
+<section class="section faq grid-two" data-reveal><div><p class="eyebrow"><QuietCopy value={copy.faq.subTitle} /></p><h2><QuietCopy value={copy.faq.title} /></h2></div><div>{copy.faq.faqs.map(faq => <details><summary><QuietCopy value={faq.question} /><span aria-hidden="true">＋</span></summary><p><QuietCopy value={faq.answer} /></p></details>)}</div></section>

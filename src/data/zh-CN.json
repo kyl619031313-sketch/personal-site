@@ -1,0 +1,99 @@
+{
+  "site": {
+    "name": "",
+    "title": "",
+    "description": "",
+    "skip": "跳到主要内容",
+    "footer": "",
+    "note": "",
+    "copyright": ""
+  },
+  "nav": [
+    {
+      "label": "首页",
+      "href": "/"
+    },
+    {
+      "label": "服务",
+      "href": "/services"
+    },
+    {
+      "label": "关于",
+      "href": "/about"
+    },
+    {
+      "label": "联系",
+      "href": "/contact"
+    }
+  ],
+  "home": {
+    "eyebrow": "",
+    "title": "",
+    "description": "",
+    "primary": "联系",
+    "secondary": "了解服务",
+    "panelTitle": "",
+    "panelLabel": "",
+    "platforms": "",
+    "whoLabel": "",
+    "whoTitle": "",
+    "whoText": "",
+    "whoLink": "",
+    "servicesLabel": "",
+    "servicesTitle": "",
+    "casesLabel": "",
+    "casesTitle": "",
+    "casesNote": ""
+  },
+  "services": [],
+  "cases": [],
+  "faq": {
+    "title": "常见问题",
+    "subTitle": "",
+    "faqs": []
+  },
+  "cta": {
+    "label": "",
+    "title": "",
+    "description": "",
+    "button": "联系"
+  },
+  "pages": {
+    "services": {
+      "title": "服务",
+      "description": "",
+      "eyebrow": "",
+      "heading": "",
+      "intro": ""
+    },
+    "about": {
+      "title": "",
+      "description": "",
+      "eyebrow": "",
+      "heading": "",
+      "intro": "",
+      "body": "",
+      "body2": "",
+      "valuesTitle": "",
+      "values": []
+    },
+    "contact": {
+      "title": "联系",
+      "description": "",
+      "eyebrow": "",
+      "heading": "",
+      "intro": "",
+      "emailLabel": "电子邮件",
+      "email": "",
+      "telegramLabel": "Telegram",
+      "telegram": "",
+      "note": "",
+      "prepareTitle": "",
+      "prepare": []
+    }
+  },
+  "process": {
+    "title": "",
+    "steps": []
+  }
+}

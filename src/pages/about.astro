@@ -1,0 +1,8 @@
+---
+import QuietCopy from '../components/QuietCopy.astro';
+import Layout from '../layouts/MainLayout.astro';
+import copy from '../data/copy';
+import CTA from '../components/sections/misc/ContactSection.astro';
+const p = copy.pages.about;
+---
+<Layout title={p.title} description={p.description}><section class="page-hero" data-reveal><p class="eyebrow"><QuietCopy value={p.eyebrow} /></p><h1><QuietCopy value={p.heading} /></h1><p class="lead"><QuietCopy value={p.intro} /></p></section><section class="section grid-two" data-reveal><div class="about-monogram" aria-hidden="true"><QuietCopy value={copy.site.name} /></div><div class="about-body"><p class="lead"><QuietCopy value={p.body} /></p><p class="lead"><QuietCopy value={p.body2} /></p><h2><QuietCopy value={p.valuesTitle} /></h2><ul>{p.values.map(value => <li><QuietCopy value={value} /></li>)}</ul></div></section><CTA /></Layout>

@@ -1,0 +1,7 @@
+---
+import QuietCopy from '../components/QuietCopy.astro';
+import Layout from '../layouts/MainLayout.astro';
+import copy from '../data/copy';
+const p = copy.pages.contact;
+---
+<Layout title={p.title} description={p.description}><section class="page-hero" data-reveal><p class="eyebrow"><QuietCopy value={p.eyebrow} /></p><h1><QuietCopy value={p.heading} /></h1><p class="lead"><QuietCopy value={p.intro} /></p></section><section class="section contact-grid" data-reveal><div class="contact-card"><p class="eyebrow"><QuietCopy value={p.emailLabel} /></p><a class="contact-address" href={p.email.trim() ? `mailto:${p.email.trim()}` : undefined}><QuietCopy value={p.email} /></a><p class="eyebrow"><QuietCopy value={p.telegramLabel} /></p><a class="contact-address" href={p.telegram.trim() ? `https://t.me/${p.telegram.trim().replace(/^@/, '')}` : undefined} target="_blank" rel="noopener noreferrer"><QuietCopy value={p.telegram} /><span aria-hidden="true">↗</span></a><p class="contact-note"><QuietCopy value={p.note} /></p></div><div><h2><QuietCopy value={p.prepareTitle} /></h2><ul>{p.prepare.map(item => <li><QuietCopy value={item} /></li>)}</ul></div></section></Layout>

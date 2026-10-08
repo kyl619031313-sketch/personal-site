@@ -1,0 +1,40 @@
+---
+import copy from '../data/copy';
+import Navbar from '../components/sections/navbar&footer/Navbar.astro';
+import Footer from '../components/sections/navbar&footer/FooterSection.astro';
+import '../assets/styles/global.css';
+interface Props { title?: string; description?: string; person?: boolean; }
+const { title, description = copy.site.description, person = false } = Astro.props;
+const pageTitle = [title, copy.site.title].filter(value => value?.trim()).join(' · ');
+const siteUrl = new URL(`${import.meta.env.BASE_URL.replace(/\/+$/, '')}/`, Astro.site);
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const schema = { '@context': 'https://schema.org', '@graph': [
+ { '@type': 'Person', '@id': `${siteUrl}#person`, name: copy.site.name, url: siteUrl.href, jobTitle: copy.site.footer, description: copy.site.description },
+ { '@type': 'ProfessionalService', '@id': `${siteUrl}#service`, name: copy.site.title, url: siteUrl.href, description: copy.site.description, founder: { '@id': `${siteUrl}#person` }, serviceType: copy.services.map(s => s.title) }
+] };
+---
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{pageTitle}</title><meta name="description" content={description} /><link rel="canonical" href={canonical} />
+<meta property="og:type" content="website" /><meta property="og:title" content={pageTitle} /><meta property="og:description" content={description} /><meta property="og:url" content={canonical} /><meta property="og:locale" content="zh_CN" /><meta property="og:site_name" content={copy.site.title} /><meta property="og:image" content={new URL('social.png', siteUrl).href} />
+<meta name="theme-color" content="#F7F6F3" /><link rel="icon" href={new URL('favicon.svg', siteUrl).pathname} type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+{person && <script type="application/ld+json" set:html={JSON.stringify(schema)} />}
+</head>
+<body><a class="skip" href="#main-content">{copy.site.skip}</a><div class="shell"><Navbar /><main id="main-content"><slot /></main><Footer /></div>
+<script>
+import '../assets/scripts/lenisSmoothScroll.js';
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+gsap.registerPlugin(ScrollTrigger);
+const media = gsap.matchMedia();
+media.add('(prefers-reduced-motion: no-preference)', () => {
+ gsap.utils.toArray<HTMLElement>('[data-reveal]').forEach(el => {
+  gsap.from(el, { y: 28, autoAlpha: 0, duration: 0.8, ease: 'power2.out', scrollTrigger: { trigger: el, start: 'top 92%', once: true } });
+ });
+});
+</script>
+</body></html>

@@ -1,0 +1,6 @@
+---
+import QuietCopy from '../../QuietCopy.astro';
+import { internalHref } from '../../../utils/links';
+import copy from '../../../data/copy';
+---
+<footer><div><a class="brand" href={internalHref('/')}><QuietCopy value={copy.site.name} /></a><p><QuietCopy value={copy.site.footer} /></p></div><nav aria-label="页脚导航">{copy.nav.map(link => <a href={internalHref(link.href)}><QuietCopy value={link.label} /></a>)}</nav><div class="footer-bottom"><span>© {new Date().getFullYear()} <QuietCopy value={copy.site.copyright} /></span><span><QuietCopy value={copy.site.note} /></span></div></footer>
