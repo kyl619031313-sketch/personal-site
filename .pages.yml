@@ -303,3 +303,39 @@ content:
               - name: text
                 label: 正文
                 type: text
+  - name: blog
+    label: 博客文章
+    type: collection
+    path: src/content/blog
+    format: yaml-frontmatter
+    subfolders: false
+    exclude: [".gitkeep"]
+    filename:
+      template: "{year}-{month}-{day}-{primary}.md"
+      field: create
+    view:
+      primary: title
+      fields: [title, date]
+      sort: [date, title]
+      default:
+        sort: date
+        order: desc
+    fields:
+      - name: title
+        label: 标题
+        type: string
+        required: true
+      - name: summary
+        label: 摘要
+        type: text
+        required: true
+      - name: date
+        label: 发布日期
+        type: date
+        required: true
+      - name: body
+        label: 正文
+        type: rich-text
+        required: true
+        options:
+          format: markdown

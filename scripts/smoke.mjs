@@ -25,9 +25,27 @@ assert.equal((home.match(/class="case-card"/g) || []).length, copy.cases.length)
 const contact = await readFile('dist/contact/index.html', 'utf8');
 if (!copy.pages.contact.email.trim()) assert.doesNotMatch(contact, /href="mailto:/);
 if (!copy.pages.contact.telegram.trim()) assert.doesNotMatch(contact, /href="https:\/\/t\.me\//);
-for (const removed of ['fr', 'blog', 'products', 'insights', 'docs']) assert.ok(!(await readdir('dist')).includes(removed));
+for (const removed of ['fr', 'products', 'insights', 'docs']) assert.ok(!(await readdir('dist')).includes(removed));
 const sitemap = await readFile('dist/sitemap-0.xml', 'utf8');
-assert.equal((sitemap.match(/<loc>/g) || []).length, 4);
-for (const route of ['', 'services/', 'about/', 'contact/']) assert.ok(sitemap.includes(`<loc>${site}${route}</loc>`));
+const postFiles = (await readdir('src/content/blog')).filter(file => file.endsWith('.md'));
+assert.equal((sitemap.match(/<loc>/g) || []).length, 5 + postFiles.length);
+for (const route of ['', 'services/', 'about/', 'contact/', 'blog/']) assert.ok(sitemap.includes(`<loc>${site}${route}</loc>`));
 assert.ok((await readFile('dist/robots.txt', 'utf8')).includes(`${site}sitemap-index.xml`));
 console.log('OK blank content, metadata, navigation, contact links and sitemap');
+
+const blog = await readFile('dist/blog/index.html', 'utf8');
+assert.match(blog, /lang="zh-CN"/);
+assert.ok(blog.includes(`rel="canonical" href="${site}blog/"`));
+assert.match(blog, /<h1>博客<\/h1>/);
+assert.match(blog, /property="og:locale" content="zh_CN"/);
+assert.match(blog, /href="\/personal-site\/blog\/" aria-current="page"/);
+assert.doesNotMatch(blog, /ScrewFast|screwfast|hreflang=|buy this template|陈某|hello@example.com|t\.me\/placeholder|作者简介|示例文章|演示文章/i);
+for (const [, href] of blog.matchAll(/href="([^"]*)"/g)) {
+ if (href.startsWith('/')) assert.ok(href.startsWith('/personal-site/'), `Unbased blog link: ${href}`);
+}
+if (!postFiles.length) {
+ assert.match(blog, /暂无文章。/);
+ assert.doesNotMatch(blog, /class="blog-entry"/);
+ assert.deepEqual(await readdir('dist/blog'), ['index.html']);
+}
+console.log('OK public blog, empty state and blog sitemap');
