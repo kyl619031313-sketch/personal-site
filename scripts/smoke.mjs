@@ -36,7 +36,7 @@ console.log('OK blank content, metadata, navigation, contact links and sitemap')
 const blog = await readFile('dist/blog/index.html', 'utf8');
 assert.match(blog, /lang="zh-CN"/);
 assert.ok(blog.includes(`rel="canonical" href="${site}blog/"`));
-assert.match(blog, /<h1>博客<\/h1>/);
+assert.match(blog, /<h1\b[^>]*>博客<\/h1>/);
 assert.match(blog, /property="og:locale" content="zh_CN"/);
 assert.match(blog, /href="\/personal-site\/blog\/" aria-current="page"/);
 assert.doesNotMatch(blog, /ScrewFast|screwfast|hreflang=|buy this template|陈某|hello@example.com|t\.me\/placeholder|作者简介|示例文章|演示文章/i);
@@ -46,6 +46,7 @@ for (const [, href] of blog.matchAll(/href="([^"]*)"/g)) {
 if (!postFiles.length) {
  assert.match(blog, /暂无文章。/);
  assert.doesNotMatch(blog, /class="blog-entry"/);
+ assert.doesNotMatch(blog, /class="blog-group|未分组/);
  assert.deepEqual(await readdir('dist/blog'), ['index.html']);
 }
 console.log('OK public blog, empty state and blog sitemap');
