@@ -29,6 +29,100 @@ const escape = value =>
         c
       ]
   );
+export function formatChineseTime(value, now = new Date()) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return '暂无发布记录';
+  const elapsed = now - date;
+  if (elapsed >= 0 && elapsed < 3600000)
+    return `${Math.floor(elapsed / 60000)} 分钟前`;
+  const parts = value =>
+    Object.fromEntries(
+      new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Shanghai',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      })
+        .formatToParts(value)
+        .map(part => [part.type, part.value])
+    );
+  const stamp = parts(date);
+  const day = value => `${value.year}-${value.month}-${value.day}`;
+  const time = `${stamp.hour}:${stamp.minute}`;
+  if (day(stamp) === day(parts(now))) return `今天 ${time}`;
+  if (day(stamp) === day(parts(new Date(now - 86400000))))
+    return `昨天 ${time}`;
+  return `${day(stamp)} ${time}`;
+}
+
+export async function describeChanges(
+  changes,
+  read = file => readFile(resolve(root, file), 'utf8')
+) {
+  const descriptions = [];
+  for (const { status, file } of changes) {
+    if (file === 'src/data/zh-CN.json') {
+      descriptions.push('更新了网站内容');
+    } else if (/^src\/content\/blog\/[^/]+\.md$/.test(file)) {
+      if (status === 'D') {
+        descriptions.push('删除了文章');
+        continue;
+      }
+      let title = file.split('/').pop().slice(0, -3);
+      try {
+        const source = await read(file);
+        const match = source.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+        title = (match && YAML.parse(match[1])?.title) || title;
+      } catch {}
+      descriptions.push(
+        `${status === 'A' ? '发布' : '更新'}了文章《${title}》`
+      );
+    }
+  }
+  return [...new Set(descriptions)].join('；') || '网站更新';
+}
+
+export async function latestPublication(
+  repository = root,
+  fallback,
+  execute = run,
+  now = new Date()
+) {
+  try {
+    const { stdout } = await execute(
+      'git',
+      [
+        'log',
+        '-1',
+        '--format=%cI',
+        '--name-status',
+        '-z',
+        '--no-renames',
+        '--',
+        'src/data/zh-CN.json',
+        'src/content/blog',
+      ],
+      { cwd: repository, timeout: 5000 }
+    );
+    const [timestamp, ...entries] = stdout.split('\0');
+    if (timestamp.trim()) {
+      const changes = [];
+      for (let i = 0; i + 1 < entries.length; i += 2)
+        changes.push({ status: entries[i].trim(), file: entries[i + 1] });
+      const description = await describeChanges(changes, file =>
+        readFile(resolve(repository, file), 'utf8')
+      );
+      return `${formatChineseTime(timestamp.trim(), now)} · ${description}`;
+    }
+  } catch {}
+  return fallback
+    ? `${formatChineseTime(fallback, now)} · 网站更新`
+    : '暂无发布记录';
+}
+
 const token = () => randomBytes(32).toString('hex');
 const equal = (a, b) =>
   timingSafeEqual(
@@ -297,22 +391,7 @@ export function createAdmin({
         `${bar(sections[key].label, ['services', 'about', 'contact'].includes(key) ? key + '/' : '', 'content-form')}<form id="content-form" data-editor ${drafted ? 'data-draft' : ''} method="post" action="${key === 'settings' ? '/settings' : '/content/' + key}">${hidden(session.csrf)}${groupedFields(key, data)}</form>`;
       if (req.method === 'GET' && ['/', '/admin/'].includes(url.pathname)) {
         const posts = await list();
-        let latest = posts[0]?.date || '暂无发布记录';
-        try {
-          const { stdout } = await run(
-            'git',
-            [
-              'log',
-              '-1',
-              '--format=%cI %s',
-              '--',
-              'src/data/zh-CN.json',
-              'src/content/blog',
-            ],
-            { cwd: repository, timeout: 5000 }
-          );
-          if (stdout.trim()) latest = stdout.trim();
-        } catch {}
+        const latest = await latestPublication(repository, posts[0]?.date);
         return send(
           `${bar('概览')}<div class="stats">${card('文章数量', '已保存的博客文章', `<p class="stat-value">${posts.length}</p>`)}${card('最近发布', '最近一次内容更新记录', `<p class="stat-value small">${escape(latest)}</p>`)}${card('线上网站', '打开已发布的公开网站', '<p><a href="https://kyl619031313-sketch.github.io/personal-site/" target="_blank" rel="noopener">查看网站 ↗</a></p>')}</div>${card(
             '快速编辑',

@@ -133,8 +133,11 @@ export function client() {
     const select = show => {
       edit.setAttribute('aria-selected', String(!show));
       preview.setAttribute('aria-selected', String(show));
-      document.getElementById('edit-panel').hidden = show;
+      const editPanel = document.getElementById('edit-panel');
       const panel = document.getElementById('preview-panel');
+      if (show && !editPanel.hidden)
+        panel.style.minHeight = `${Math.max(body.offsetHeight, editPanel.offsetHeight)}px`;
+      editPanel.hidden = show;
       panel.hidden = !show;
       if (show)
         panel.innerHTML =

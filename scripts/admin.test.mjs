@@ -12,7 +12,80 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
-import { createAdmin, publish } from '../admin/server.mjs';
+import {
+  createAdmin,
+  publish,
+  formatChineseTime,
+  describeChanges,
+  latestPublication,
+} from '../admin/server.mjs';
+
+test('publication time uses Chinese labels and Shanghai calendar days', () => {
+  const now = new Date('2026-10-09T02:30:00Z');
+  assert.equal(formatChineseTime('2026-10-09T02:12:00Z', now), '18 分钟前');
+  assert.equal(formatChineseTime('2026-10-09T01:30:00Z', now), '今天 09:30');
+  assert.equal(formatChineseTime('2026-10-08T15:59:00Z', now), '昨天 23:59');
+  assert.equal(formatChineseTime('2026-10-07T16:00:00Z', now), '昨天 00:00');
+  assert.equal(
+    formatChineseTime('2026-10-07T15:59:00Z', now),
+    '2026-10-07 23:59'
+  );
+  assert.equal(formatChineseTime('invalid', now), '暂无发布记录');
+});
+
+test('publication describes changed files and tolerates missing Git or articles', async () => {
+  const read = async () => '---\ntitle: "中文标题"\n---\n正文';
+  const blog = status => [{ status, file: 'src/content/blog/example.md' }];
+  assert.equal(
+    await describeChanges(blog('A'), read),
+    '发布了文章《中文标题》'
+  );
+  assert.equal(
+    await describeChanges(blog('M'), read),
+    '更新了文章《中文标题》'
+  );
+  assert.equal(await describeChanges(blog('D'), read), '删除了文章');
+  assert.equal(
+    await describeChanges(blog('A'), async () => {
+      throw Error('missing');
+    }),
+    '发布了文章《example》'
+  );
+  assert.equal(
+    await describeChanges(
+      [{ status: 'M', file: 'src/data/zh-CN.json' }, ...blog('A')],
+      read
+    ),
+    '更新了网站内容；发布了文章《中文标题》'
+  );
+  assert.equal(
+    await describeChanges([{ status: 'M', file: 'other' }]),
+    '网站更新'
+  );
+  const now = new Date('2026-10-09T02:30:00Z');
+  assert.equal(
+    await latestPublication(
+      '/tmp',
+      undefined,
+      async () => ({
+        stdout: '2026-10-09T10:12:00+08:00\0\nM\0src/data/zh-CN.json\0',
+      }),
+      now
+    ),
+    '18 分钟前 · 更新了网站内容'
+  );
+  const unavailable = async () => {
+    throw Error('Git unavailable');
+  };
+  assert.equal(
+    await latestPublication('/tmp', undefined, unavailable, now),
+    '暂无发布记录'
+  );
+  assert.equal(
+    await latestPublication('/tmp', '2026-10-08', unavailable, now),
+    '昨天 08:00 · 网站更新'
+  );
+});
 
 test('requires a runtime password', () =>
   assert.throws(() => createAdmin(), /ADMIN_PASSWORD/));
