@@ -1,6 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readdir, readFile, rm, symlink } from 'node:fs/promises';
+import {
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -11,15 +18,20 @@ test('requires a runtime password', () =>
   assert.throws(() => createAdmin(), /ADMIN_PASSWORD/));
 test('authenticated CRUD, CSRF, stable filename and failed publication', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'blog-admin-'));
+  const contentFile = join(directory, 'zh-CN.json');
+  const original = JSON.parse(await readFile('src/data/zh-CN.json', 'utf8'));
+  original.unknown = { keep: 'preserved' };
+  await writeFile(contentFile, JSON.stringify(original));
   const calls = [];
   let fail = false;
   const password = randomUUID();
   const app = createAdmin({
     password,
     directory,
+    contentFile,
     publisher: async (...args) => {
       calls.push(args);
-      if (fail) throw Error('secret output must never be shown');
+      if (fail) throw Error('发布网络不可用');
     },
   });
   let cookie = '';
@@ -79,7 +91,69 @@ test('authenticated CRUD, CSRF, stable filename and failed publication', async (
       401
     );
     assert.equal((await request('/login', { csrf, password })).res.status, 303);
-    result = await request('/');
+    for (const path of [
+      '/',
+      '/admin/',
+      '/posts',
+      '/content',
+      '/content/home',
+      '/content/services',
+      '/content/cases',
+      '/content/faq',
+      '/content/about',
+      '/content/contact',
+      '/content/nav',
+      '/settings',
+    ]) {
+      result = await request(path);
+      assert.equal(result.res.status, 200, path);
+      assert.match(result.html, /class="sidebar"/);
+    }
+    result = await request('/content/home');
+    const values = Object.fromEntries(
+      [...result.html.matchAll(/name="(field:[^"]+)"/g)].map(m => [m[1], ''])
+    );
+    assert.equal(
+      (await request('/content/home', { csrf, ...values })).res.status,
+      303
+    );
+    const saved = JSON.parse(await readFile(contentFile, 'utf8'));
+    assert.equal(saved.home.title, '');
+    assert.equal(saved.cta.description, '');
+    assert.deepEqual(saved.unknown, original.unknown);
+    assert.deepEqual(saved.pages, original.pages);
+    assert.equal(
+      (
+        await request('/content/home', {
+          csrf,
+          ...values,
+          'field:site.name': 'bad',
+        })
+      ).res.status,
+      400
+    );
+    result = await request('/content/cases');
+    result = await request('/content/cases', { csrf, operation: 'add:cases' });
+    assert.equal(result.res.status, 200);
+    assert.match(result.html, /field:cases.0.title/);
+    const caseValues = Object.fromEntries(
+      [...result.html.matchAll(/name="(field:[^"]+)"/g)].map(m => [m[1], ''])
+    );
+    assert.equal(
+      (await request('/content/cases', { csrf, ...caseValues })).res.status,
+      303
+    );
+    assert.deepEqual(JSON.parse(await readFile(contentFile, 'utf8')).cases, [
+      {
+        title: '',
+        tag: '',
+        description: '',
+        metric: '',
+        metricLabel: '',
+        detail: '',
+      },
+    ]);
+    result = await request('/posts');
     assert.match(result.html, /暂无文章/);
     assert.doesNotMatch(result.html, /<article>/);
     assert.equal((await request('/save', { title: 'bad' })).res.status, 403);
@@ -96,7 +170,7 @@ test('authenticated CRUD, CSRF, stable filename and failed publication', async (
       400
     );
     assert.equal((await request('/save', fields)).res.status, 303);
-    const [file] = await readdir(directory);
+    const [file] = (await readdir(directory)).filter(f => f.endsWith('.md'));
     assert.match(file, /^2026-10-09-.*\.md$/);
     const content = await readFile(join(directory, file), 'utf8');
     assert.match(content, /group: ""/);
@@ -115,7 +189,10 @@ test('authenticated CRUD, CSRF, stable filename and failed publication', async (
       ).res.status,
       303
     );
-    assert.deepEqual(await readdir(directory), [file]);
+    assert.deepEqual(
+      (await readdir(directory)).filter(f => f.endsWith('.md')),
+      [file]
+    );
     assert.equal(
       (await request('/save', { ...fields, csrf, file: '../escape.md' })).res
         .status,
@@ -127,7 +204,7 @@ test('authenticated CRUD, CSRF, stable filename and failed publication', async (
     result = await request('/save', { ...fields, csrf, file, title: '修改后' });
     assert.equal(result.res.status, 502);
     assert.match(result.html, /已保存到磁盘/);
-    assert.doesNotMatch(result.html, /secret output/);
+    assert.match(result.html, /发布网络不可用/);
     assert.match(await readFile(join(directory, file), 'utf8'), /修改后/);
     fail = false;
     assert.equal((await request('/delete', { csrf, file })).res.status, 303);
@@ -166,7 +243,7 @@ test('publication stages and commits only the literal Markdown path with runtime
     'commit',
     '--only',
     '-m',
-    'Update blog post',
+    'Update site content',
     '--',
     ':(literal)src/content/blog/article.md',
   ]);
@@ -198,4 +275,17 @@ test('publication stages and commits only the literal Markdown path with runtime
         !c.args.includes('config')
     )
   );
+});
+
+test('ADMIN_NO_GIT skips every git and network command', async () => {
+  const before = process.env.ADMIN_NO_GIT;
+  process.env.ADMIN_NO_GIT = '1';
+  try {
+    await publish('src/data/zh-CN.json', 'Update', '/unused', async () => {
+      throw Error('must not execute');
+    });
+  } finally {
+    if (before === undefined) delete process.env.ADMIN_NO_GIT;
+    else process.env.ADMIN_NO_GIT = before;
+  }
 });
