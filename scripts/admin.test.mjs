@@ -95,6 +95,7 @@ test('authenticated CRUD, CSRF, stable filename and failed publication', async (
       '/',
       '/admin/',
       '/posts',
+      '/new',
       '/content',
       '/content/home',
       '/content/services',
@@ -110,6 +111,10 @@ test('authenticated CRUD, CSRF, stable filename and failed publication', async (
       assert.match(result.html, /class="sidebar"/);
     }
     result = await request('/content/home');
+    assert.match(result.html, /form="content-form"/);
+    assert.match(result.html, /首屏/);
+    assert.match(result.html, /<input[^>]+name="field:home.title"/);
+    assert.match(result.html, /<textarea[^>]+name="field:home.description"/);
     const values = Object.fromEntries(
       [...result.html.matchAll(/name="(field:[^"]+)"/g)].map(m => [m[1], ''])
     );
@@ -176,7 +181,14 @@ test('authenticated CRUD, CSRF, stable filename and failed publication', async (
     assert.match(content, /group: ""/);
     assert.match(content, /title: "标题 \\"引号\\"\\n新行"/);
     result = await request('/edit?file=' + encodeURIComponent(file));
+    assert.equal(result.res.status, 200);
     assert.match(result.html, /&quot;引号&quot;/);
+    assert.match(result.html, /role="tab"/);
+    assert.match(result.html, /id="post-groups"/);
+    assert.equal(
+      (await request('/delete?file=' + encodeURIComponent(file))).res.status,
+      200
+    );
     assert.equal(
       (
         await request('/save', {

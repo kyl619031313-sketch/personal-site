@@ -1,4 +1,6 @@
-import { sections, fields, update, validFields } from './content.mjs';
+import { style, editor, bar, card } from './views.mjs';
+import { client } from './client.mjs';
+import { sections, groupedFields, update, validFields } from './content.mjs';
 import http from 'node:http';
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import {
@@ -33,27 +35,10 @@ const equal = (a, b) =>
     createHash('sha256').update(a).digest(),
     createHash('sha256').update(b).digest()
   );
-const style = `*{box-sizing:border-box}body{margin:0;background:#F7F6F3;color:#20221f;font-family:Inter,"Noto Sans SC",sans-serif;line-height:1.7}main{max-width:900px;margin:64px auto;padding:0 24px}header,.actions{display:flex;align-items:center;justify-content:space-between;gap:16px}h1{font-size:32px;font-weight:500}a{color:inherit}button,.button{font:inherit;border:1px solid #373936;background:#373936;color:#fff;padding:10px 20px;border-radius:4px;cursor:pointer;text-decoration:none}label{display:block;margin:22px 0 6px}input,textarea{width:100%;font:inherit;border:1px solid #ccc;background:#fff;padding:12px;border-radius:4px}textarea{resize:vertical}article{padding:24px 0;border-bottom:1px solid #ddd}small,.muted{color:#666}.notice{padding:16px;border:1px solid #bbb;white-space:pre-wrap}.login{max-width:440px}.actions{justify-content:flex-start;margin-top:24px}.danger{background:transparent;color:#373936}form.inline{display:inline}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid #373936;outline-offset:3px}@media(max-width:600px){main{margin:32px auto}header{flex-wrap:wrap}}`;
 function page(content) {
-  return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>网站管理</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Noto+Sans+SC:wght@400;500;600&amp;display=swap"><style>${style}${adminStyle}</style><main>${content}</main></html>`;
+  return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>网站管理</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Noto+Sans+SC:wght@400;500;600&amp;display=swap"><style>${style}</style><main>${content}</main><script>(${client.toString()})()</script></html>`;
 }
-const adminStyle = `body{background:#F7F6F3;color:#1f1f1f}main{max-width:none;margin:0;padding:0}.sidebar{position:fixed;inset:0 auto 0 0;width:220px;overflow-y:auto;background:#fff;border-right:1px solid #e2e0dc;padding:28px 20px}.sidebar a{display:block;padding:10px;text-decoration:none;border-radius:6px}.sidebar a[aria-current]{background:#F7F6F3;font-weight:600}.workspace{margin-left:220px;padding:40px;max-width:1250px;height:100vh;overflow:auto}.card{background:white;border:1px solid #e2e0dc;border-radius:10px;padding:24px;margin:20px 0}.login{margin:12vh auto;background:white;border:1px solid #e2e0dc;border-radius:12px;padding:32px}button,.button{background:#1f1f1f;border-color:#1f1f1f}.secondary{background:white;color:#1f1f1f;padding:6px 12px}fieldset{border:1px solid #e2e0dc;border-radius:8px;margin:20px 0;padding:18px}.row{border-bottom:1px solid #e2e0dc;padding-bottom:16px}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:14px;border-bottom:1px solid #e2e0dc}.sidebar button{margin-top:24px}.actions{flex-wrap:wrap}@media(max-width:760px){.sidebar{width:160px;padding:16px 8px}.workspace{margin-left:160px;padding:20px}table{font-size:14px}}`;
 const hidden = csrf => `<input type="hidden" name="csrf" value="${csrf}">`;
-function editor(post, csrf, message = '') {
-  return `<header><h1>${post.file ? '编辑文章' : '新建文章'}</h1><a href="/posts">返回文章列表</a></header>${message ? `<p class="notice" role="alert">${escape(message)}</p>` : ''}<form method="post" action="/save">${hidden(csrf)}<input type="hidden" name="file" value="${escape(post.file)}">${[
-    ['title', '标题'],
-    ['summary', '摘要'],
-    ['date', '发布日期'],
-    ['group', '分组'],
-  ]
-    .map(
-      ([name, label]) =>
-        `<label for="${name}">${label}</label><input id="${name}" name="${name}" ${name === 'date' ? 'type="date"' : ''} ${name !== 'group' ? 'required' : ''} value="${escape(post[name])}">`
-    )
-    .join(
-      ''
-    )}<label for="body">正文</label><textarea id="body" name="body" rows="20" required>${escape(post.body)}</textarea><p class="muted">正文支持 Markdown。分组可留空。保存后自动发布，公开网站更新需要稍等片刻。</p><div class="actions"><button>保存并发布</button><a href="/posts">取消</a></div></form>`;
-}
 export async function publish(file, action, cwd = root, execute = run) {
   if (process.env.ADMIN_NO_GIT === '1') return;
   const pathspec = `:(literal)${file}`;
@@ -189,11 +174,11 @@ export function createAdmin({
         ['/content', '网站内容'],
         ['/settings', '设置'],
       ];
-      const sidebar = `<aside class="sidebar" aria-label="后台导航"><h2>网站管理</h2>${links.map(([href, label]) => `<a href="${href}" ${req.url.split('?')[0] === href ? 'aria-current="page"' : ''}>${label}</a>`).join('')}<form method="post" action="/logout">${hidden(session?.csrf || '')}<button class="secondary">退出登录</button></form></aside>`;
+      const sidebar = `<aside class="sidebar" aria-label="后台导航"><h2>网站管理</h2>${links.map(([href, label]) => `<a href="${href}" ${(href === '/content' ? req.url.startsWith('/content') : href === '/posts' ? /^\/(posts|new|edit|delete)/.test(req.url) : req.url.split('?')[0] === href) ? 'aria-current="page"' : ''}>${label}</a>`).join('')}<form method="post" action="/logout">${hidden(session?.csrf || '')}<button class="secondary">退出登录</button></form></aside>`;
       res.end(
         page(
           session?.authenticated
-            ? `${sidebar}<div class="workspace">${session.notice ? `<p class="notice" role="status">${escape(session.notice)}</p>` : ''}${html}</div>`
+            ? `${sidebar}<div class="workspace"><div class="workspace-inner">${session.notice ? `<p class="notice" role="status">${escape(session.notice)}</p>` : ''}${html}</div></div>`
             : html
         )
       );
@@ -259,11 +244,19 @@ export function createAdmin({
         session = sessions.get(guest);
         cookie(guest, 3600);
       }
-      const login = message =>
-        send(
-          `<div class="login"><h1>网站管理</h1><p class="muted">登录后管理网站内容与博客文章。</p>${message ? '<p role="alert">密码不正确，请重试。</p>' : ''}<form method="post" action="/login">${hidden(session.csrf)}<label for="password">密码</label><input id="password" name="password" type="password" autocomplete="current-password" required><div class="actions"><button>登录</button></div></form></div>`,
+      const login = async message => {
+        let name = '网站管理';
+        try {
+          name =
+            JSON.parse(
+              await readFile(contentFile, 'utf8')
+            ).site?.name?.trim() || name;
+        } catch {}
+        return send(
+          `<div class="login card"><h1>${escape(name)}</h1><p class="muted">登录后管理网站内容与博客文章。</p>${message ? '<p role="alert">密码不正确，请重试。</p>' : ''}<form method="post" action="/login">${hidden(session.csrf)}<label for="password">密码</label><input id="password" name="password" type="password" autocomplete="current-password" placeholder="请输入管理密码" required><div class="actions"><button>登录</button></div></form></div>`,
           message ? 401 : 200
         );
+      };
       if (req.method === 'POST' && !equal(form.get('csrf') || '', session.csrf))
         return send('请求已失效，请刷新页面后重试。', 403);
       if (!session.authenticated) {
@@ -300,8 +293,8 @@ export function createAdmin({
       }
       const content = async () =>
         JSON.parse(await readFile(contentFile, 'utf8'));
-      const renderContent = (key, data) =>
-        `<h1>${sections[key].label}</h1><p class="muted">空字段将保持为空。列表操作保留当前填写内容，最后点击保存并发布。</p><form class="card" method="post" action="${key === 'settings' ? '/settings' : '/content/' + key}">${hidden(session.csrf)}${fields(sections[key].schema, data)}<div class="actions"><button>保存并发布</button></div></form>`;
+      const renderContent = (key, data, drafted = false) =>
+        `${bar(sections[key].label, ['services', 'about', 'contact'].includes(key) ? key + '/' : '', 'content-form')}<form id="content-form" data-editor ${drafted ? 'data-draft' : ''} method="post" action="${key === 'settings' ? '/settings' : '/content/' + key}">${hidden(session.csrf)}${groupedFields(key, data)}</form>`;
       if (req.method === 'GET' && ['/', '/admin/'].includes(url.pathname)) {
         const posts = await list();
         let latest = posts[0]?.date || '暂无发布记录';
@@ -321,15 +314,33 @@ export function createAdmin({
           if (stdout.trim()) latest = stdout.trim();
         } catch {}
         return send(
-          `<h1>概览</h1><div class="card"><a href="https://kyl619031313-sketch.github.io/personal-site/" target="_blank" rel="noopener">查看线上网站 ↗</a><p>文章数量：${posts.length}</p><p>最近发布：${escape(latest)}</p></div>`
+          `${bar('概览')}<div class="stats">${card('文章数量', '已保存的博客文章', `<p class="stat-value">${posts.length}</p>`)}${card('最近发布', '最近一次内容更新记录', `<p class="stat-value small">${escape(latest)}</p>`)}${card('线上网站', '打开已发布的公开网站', '<p><a href="https://kyl619031313-sketch.github.io/personal-site/" target="_blank" rel="noopener">查看网站 ↗</a></p>')}</div>${card(
+            '快速编辑',
+            '选择需要更新的内容。',
+            `<div class="quick-links"><a class="quick-link" href="/posts">博客文章 ↗</a>${Object.entries(
+              sections
+            )
+              .map(
+                ([k, v]) =>
+                  `<a class="quick-link" href="${k === 'settings' ? '/settings' : '/content/' + k}">${v.label} ↗</a>`
+              )
+              .join('')}</div>`
+          )}`
         );
       }
       if (req.method === 'GET' && url.pathname === '/content')
         return send(
-          `<h1>网站内容</h1><div class="card">${Object.entries(sections)
-            .filter(([k]) => k !== 'settings')
-            .map(([k, v]) => `<p><a href="/content/${k}">${v.label}</a></p>`)
-            .join('')}</div>`
+          `${bar('网站内容')}${card(
+            '内容区块',
+            '选择页面，编辑文字与列表。',
+            `<div class="quick-links">${Object.entries(sections)
+              .filter(([k]) => k !== 'settings')
+              .map(
+                ([k, v]) =>
+                  `<a class="quick-link" href="/content/${k}">${v.label} ↗</a>`
+              )
+              .join('')}</div>`
+          )}`
         );
       const sectionKey =
         url.pathname === '/settings'
@@ -366,7 +377,7 @@ export function createAdmin({
             if (form.has('operation')) {
               session.drafts ??= {};
               session.drafts[sectionKey] = next;
-              return send(renderContent(sectionKey, next));
+              return send(renderContent(sectionKey, next, true));
             }
             await writeFile(contentFile, JSON.stringify(next, null, 2) + '\n');
             if (session.drafts) delete session.drafts[sectionKey];
@@ -387,7 +398,7 @@ export function createAdmin({
                 ? '已保存（发布已禁用）'
                 : process.env.ADMIN_NO_PUSH === '1'
                   ? '已保存并提交（推送已禁用）'
-                  : '已保存，正在发布（GitHub Pages 约 1–2 分钟后更新）';
+                  : '已保存，正在发布，约 1 分钟后线上更新';
             return redirect(url.pathname);
           };
           const pending = queue.then(task);
@@ -399,22 +410,32 @@ export function createAdmin({
       if (req.method === 'GET' && url.pathname === '/posts') {
         const posts = await list();
         return send(
-          `<header><h1>博客文章</h1><a class="button" href="/new">新建文章</a></header><div class="card"><table><thead><tr><th>标题</th><th>发布日期</th><th>分组</th><th>操作</th></tr></thead><tbody>${posts.map(p => `<tr><td>${escape(p.title)}</td><td>${escape(p.date)}</td><td>${escape(p.group)}</td><td><a href="/edit?file=${encodeURIComponent(p.file)}">编辑</a> <a href="/delete?file=${encodeURIComponent(p.file)}">删除</a></td></tr>`).join('')}</tbody></table>${posts.length ? '' : '<p class="muted">暂无文章。</p>'}</div>`
+          `${bar('博客文章', 'blog/')}<p><a class="button" href="/new">＋ 新建文章</a></p>${posts.length ? card('文章列表', '管理文章内容、发布日期与分组。', `<div class="table-wrap"><table><thead><tr><th>标题</th><th>发布日期</th><th>分组</th><th>操作</th></tr></thead><tbody>${posts.map(p => `<tr><td><a href="/edit?file=${encodeURIComponent(p.file)}">${escape(p.title)}</a></td><td>${escape(p.date)}</td><td>${p.group ? `<span class="pill">${escape(p.group)}</span>` : '<span class="muted">未分组</span>'}</td><td><a href="/edit?file=${encodeURIComponent(p.file)}">编辑</a><a href="/delete?file=${encodeURIComponent(p.file)}">删除</a></td></tr>`).join('')}</tbody></table></div>`) : card('开始写作', '发布第一篇文章，与读者分享你的想法。', '<div class="empty"><h2>暂无文章</h2><p>从一个标题开始，记录值得分享的内容。</p><a class="button" href="/new">新建第一篇文章</a></div>')}`
         );
       }
       if (req.method === 'GET' && url.pathname === '/delete') {
         const post = await readPost(url.searchParams.get('file'));
         return send(
-          `<h1>删除文章</h1><p>确定删除「${escape(post.title)}」？删除后将自动发布。</p><form method="post" action="/delete">${hidden(session.csrf)}<input type="hidden" name="file" value="${escape(post.file)}"><button>确认删除</button> <a href="/posts">取消</a></form>`
+          `${bar('删除文章', 'blog/')}<form method="post" action="/delete">${hidden(session.csrf)}<input type="hidden" name="file" value="${escape(post.file)}">${card('确认删除', '删除后将自动发布，请确认文章标题。', `<p>确定删除「${escape(post.title)}」？</p><button>确认删除</button> <a href="/posts">取消</a>`)}</form>`
         );
       }
       if (req.method === 'GET' && url.pathname === '/new')
         return send(
-          editor({ date: new Date().toISOString().slice(0, 10) }, session.csrf)
+          editor(
+            { date: new Date().toISOString().slice(0, 10) },
+            session.csrf,
+            '',
+            (await list()).map(p => p.group)
+          )
         );
       if (req.method === 'GET' && url.pathname === '/edit')
         return send(
-          editor(await readPost(url.searchParams.get('file')), session.csrf)
+          editor(
+            await readPost(url.searchParams.get('file')),
+            session.csrf,
+            '',
+            (await list()).map(p => p.group)
+          )
         );
       if (
         req.method === 'POST' &&
@@ -442,7 +463,8 @@ export function createAdmin({
                 editor(
                   { ...post, file },
                   session.csrf,
-                  '请填写标题、摘要、正文和有效的发布日期。'
+                  '请填写标题、摘要、正文和有效的发布日期。',
+                  (await list()).map(p => p.group)
                 ),
                 400
               );
@@ -479,9 +501,10 @@ export function createAdmin({
                 ? editor(
                     { ...post, file },
                     session.csrf,
-                    `文章已保存到磁盘，但发布失败：${error.message} ${error.stderr || ''}`
+                    `文章已保存到磁盘，但发布失败：${error.message} ${error.stderr || ''}`,
+                    (await list()).map(p => p.group)
                   )
-                : '<h1>发布失败</h1><p role="alert">文章已从磁盘删除，但发布失败。请检查服务的登录、网络和仓库状态。</p><a href="/posts">返回文章列表</a>',
+                : `<h1>发布失败</h1><p class="notice error" role="alert">文章已从磁盘删除，但发布失败：${escape(error.message)} ${escape(error.stderr || '')}</p><a href="/posts">返回文章列表</a>`,
               502
             );
           }
@@ -490,7 +513,7 @@ export function createAdmin({
               ? '已保存（发布已禁用）'
               : process.env.ADMIN_NO_PUSH === '1'
                 ? '已保存并提交（推送已禁用）'
-                : '已保存，正在发布（GitHub Pages 约 1–2 分钟后更新）';
+                : '已保存，正在发布，约 1 分钟后线上更新';
           return redirect('/posts');
         };
         const pending = queue.then(task);
@@ -501,7 +524,7 @@ export function createAdmin({
       send('页面不存在。', 404);
     } catch (error) {
       send(
-        '<h1>操作未完成</h1><p role="alert">无法读取或保存文章，请检查文件名、文章格式及目录权限。</p><a href="/posts">返回文章列表</a>',
+        '<h1>操作未完成</h1><p class="notice error" role="alert">无法读取或保存文章，请检查文件名、文章格式及目录权限。</p><a href="/posts">返回文章列表</a>',
         400
       );
     }
