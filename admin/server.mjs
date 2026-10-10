@@ -16,9 +16,9 @@ import { resolve, relative, sep } from 'node:path';
 import { execFile } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { promisify } from 'node:util';
-// Use Astro's existing YAML parser; no additional npm dependency.
+// The admin runtime needs only YAML in addition to Node built-ins.
 const require = createRequire(import.meta.url);
-const YAML = createRequire(require.resolve('astro/package.json'))('yaml');
+const YAML = require('yaml');
 const run = promisify(execFile);
 const root = resolve(new URL('../', import.meta.url).pathname);
 const escape = value =>
@@ -132,27 +132,93 @@ const equal = (a, b) =>
 function page(content) {
   return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>网站管理</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Noto+Sans+SC:wght@400;500;600&amp;display=swap"><style>${style}</style><main>${content}</main><script>(${client.toString()})()</script></html>`;
 }
+// Preserve newly pulled unknown fields while keeping the existing list draft shape.
+function applyDraft(schema, latest, draft) {
+  if (typeof schema === 'string') return draft;
+  if (Array.isArray(schema))
+    return (draft || []).map((row, i) =>
+      applyDraft(schema[0], latest?.[i], row)
+    );
+  const result = { ...latest };
+  for (const [key, child] of Object.entries(schema))
+    result[key] = applyDraft(child, latest?.[key], draft?.[key]);
+  return result;
+}
 const hidden = csrf => `<input type="hidden" name="csrf" value="${csrf}">`;
+export const conflictMessage =
+  '保存失败：线上内容已被其他人更新，且与本次修改冲突。请刷新页面后重新修改并保存。';
+export function redact(value) {
+  const text = String(value || '');
+  return process.env.GITHUB_TOKEN
+    ? text.split(process.env.GITHUB_TOKEN).join('[REDACTED]')
+    : text;
+}
+const auth = () =>
+  process.env.GITHUB_TOKEN
+    ? [
+        '-c',
+        'credential.helper=',
+        '-c',
+        'credential.helper=!f() { echo username=x-access-token; echo "password=$GITHUB_TOKEN"; }; f',
+      ]
+    : ['-c', 'credential.helper=!gh auth git-credential'];
+const gitRunner =
+  (cwd, execute) =>
+  (...args) =>
+    execute('git', args, { cwd, timeout: 60000, maxBuffer: 1024 * 1024 });
+async function pullLatest(cwd, execute) {
+  const git = gitRunner(cwd, execute);
+  try {
+    await git(...auth(), 'pull', '--rebase', 'origin', 'main');
+  } catch (error) {
+    // Abort is harmless when Git reports that no rebase is in progress.
+    try {
+      await git('rebase', '--abort');
+    } catch {}
+    const detail = redact(
+      `${error.message || ''} ${error.stdout || ''} ${error.stderr || ''}`
+    );
+    throw new Error(
+      /conflict|CONFLICT|could not apply/i.test(detail)
+        ? conflictMessage
+        : `保存失败：无法同步线上内容。${detail}`
+    );
+  }
+}
+export async function prepareSave(cwd = root, execute = run) {
+  if (process.env.ADMIN_NO_GIT === '1') return;
+  const git = gitRunner(cwd, execute);
+  if ((await git('branch', '--show-current')).stdout.trim() !== 'main')
+    throw new Error('请在 main 分支启动管理服务。');
+  if ((await git('status', '--porcelain')).stdout.trim())
+    throw new Error('保存失败：仓库有未提交的修改，请先处理后重试。');
+  if (process.env.ADMIN_NO_PUSH !== '1') await pullLatest(cwd, execute);
+  return (await git('rev-parse', 'HEAD')).stdout.trim();
+}
 export async function publish(file, action, cwd = root, execute = run) {
   if (process.env.ADMIN_NO_GIT === '1') return;
   const pathspec = `:(literal)${file}`;
-  const git = (...args) =>
-    execute('git', args, { cwd, timeout: 60000, maxBuffer: 1024 * 1024 });
+  const git = gitRunner(cwd, execute);
   const { stdout: branch } = await git('branch', '--show-current');
   if (branch.trim() !== 'main') throw new Error('请在 main 分支启动管理服务。');
-  const { stdout: login } = await execute(
-    'gh',
-    ['api', 'user', '--jq', '.login'],
-    { cwd, timeout: 15000 }
-  );
-  const name = login.trim();
-  if (!/^[a-zA-Z0-9-]+$/.test(name)) throw new Error('无法确认发布身份。');
+  let name = process.env.GIT_AUTHOR_NAME;
+  let email = process.env.GIT_AUTHOR_EMAIL;
+  if (!name) {
+    const { stdout: login } = await execute(
+      'gh',
+      ['api', 'user', '--jq', '.login'],
+      { cwd, timeout: 15000 }
+    );
+    name = login.trim();
+    if (!/^[a-zA-Z0-9-]+$/.test(name)) throw new Error('无法确认发布身份。');
+  }
+  email ||= `${name}@users.noreply.github.com`;
   const env = {
     ...process.env,
     GIT_AUTHOR_NAME: name,
     GIT_COMMITTER_NAME: name,
-    GIT_AUTHOR_EMAIL: `${name}@users.noreply.github.com`,
-    GIT_COMMITTER_EMAIL: `${name}@users.noreply.github.com`,
+    GIT_AUTHOR_EMAIL: email,
+    GIT_COMMITTER_EMAIL: email,
   };
   const { stdout: diff } = await git('diff', 'HEAD', '--', pathspec);
   if (diff || (await git('ls-files', '--', pathspec)).stdout.trim() === '') {
@@ -165,23 +231,26 @@ export async function publish(file, action, cwd = root, execute = run) {
   }
   if (process.env.ADMIN_NO_PUSH === '1') return;
   try {
-    await git(
-      '-c',
-      'credential.helper=!gh auth git-credential',
-      'push',
-      'origin',
-      'main'
-    );
+    try {
+      await git(...auth(), 'push', 'origin', 'main');
+    } catch (error) {
+      if (
+        !/non-fast-forward|fetch first|rejected/i.test(
+          `${error.stderr || ''} ${error.stdout || ''}`
+        )
+      )
+        throw error;
+      await pullLatest(cwd, execute);
+      await git(...auth(), 'push', 'origin', 'main');
+    }
   } catch (error) {
-    if (!/non-fast-forward|fetch first|rejected/.test(error.stderr || ''))
-      throw error;
-    await git('pull', '--rebase', 'origin', 'main');
-    await git(
-      '-c',
-      'credential.helper=!gh auth git-credential',
-      'push',
-      'origin',
-      'main'
+    const detail = redact(
+      `${error.message || ''} ${error.stdout || ''} ${error.stderr || ''}`
+    ).trim();
+    throw new Error(
+      error.message === conflictMessage
+        ? conflictMessage
+        : `保存失败：无法发布线上内容。${detail}`
     );
   }
 }
@@ -191,11 +260,33 @@ export function createAdmin({
   publisher = publish,
   contentFile = resolve(root, 'src/data/zh-CN.json'),
   repository = root,
+  execute = run,
 } = {}) {
   if (!password) throw new Error('缺少 ADMIN_PASSWORD，管理服务未启动。');
   const sessions = new Map();
   const attempts = new Map();
   let queue = Promise.resolve();
+  const transaction = async task => {
+    // Custom publishers retain their existing injectable, disk-only behavior.
+    const head =
+      publisher === publish
+        ? await prepareSave(repository, execute)
+        : undefined;
+    const cleanups = [];
+    try {
+      return await task(cleanup => cleanups.push(cleanup));
+    } catch (error) {
+      if (head) {
+        const git = gitRunner(repository, execute);
+        try {
+          await git('rebase', '--abort');
+        } catch {}
+        await git('reset', '--hard', head);
+        for (const cleanup of cleanups) await cleanup(error);
+      }
+      throw error;
+    }
+  };
   const safeFile = async file => {
     if (
       !file ||
@@ -282,10 +373,13 @@ export function createAdmin({
       res.writeHead(303, { Location: path });
       res.end();
     };
+    const peer = req.socket.remoteAddress || 'local';
+    const trusted =
+      process.env.ADMIN_TRUST_PROXY === '1' ||
+      ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(peer);
     const secure =
       Boolean(req.socket.encrypted) ||
-      (process.env.ADMIN_TRUST_PROXY === '1' &&
-        req.headers['x-forwarded-proto'] === 'https');
+      (trusted && req.headers['x-forwarded-proto'] === 'https');
     const cookie = (value, maxAge) =>
       res.setHeader(
         'Set-Cookie',
@@ -293,8 +387,14 @@ export function createAdmin({
       );
     for (const [key, value] of sessions)
       if (value.expires < Date.now()) sessions.delete(key);
-    for (const [key, value] of attempts)
-      if (value.until < Date.now()) attempts.delete(key);
+    for (const [key, value] of attempts) {
+      if (
+        value.lockedUntil
+          ? value.lockedUntil <= Date.now()
+          : !value.failures.some(time => time > Date.now() - 15 * 60000)
+      )
+        attempts.delete(key);
+    }
     const id = (req.headers.cookie || '').match(
       /(?:^|;\s*)admin_session=([a-f0-9]{64})(?:;|$)/
     )?.[1];
@@ -355,16 +455,26 @@ export function createAdmin({
         return send('请求已失效，请刷新页面后重试。', 403);
       if (!session.authenticated) {
         if (req.method === 'POST' && url.pathname === '/login') {
-          const address = req.socket.remoteAddress || 'local';
+          const address =
+            trusted && req.headers['x-forwarded-for']
+              ? req.headers['x-forwarded-for'].split(',')[0].trim()
+              : peer;
           const attempt = attempts.get(address) || {
-            count: 0,
-            until: Date.now() + 15 * 60000,
+            failures: [],
+            lockedUntil: 0,
           };
-          if (attempt.count >= 20)
-            return send('登录尝试过多，请十五分钟后再试。', 429);
+          if (attempt.lockedUntil > Date.now())
+            return send('密码错误次数过多，请 10 分钟后再试。', 429);
           if (!equal(form.get('password') || '', password)) {
-            attempt.count++;
+            attempt.failures = attempt.failures.filter(
+              time => time > Date.now() - 15 * 60000
+            );
+            attempt.failures.push(Date.now());
             attempts.set(address, attempt);
+            if (attempt.failures.length >= 5) {
+              attempt.lockedUntil = Date.now() + 10 * 60000;
+              return send('密码错误次数过多，请 10 分钟后再试。', 429);
+            }
             return login(true);
           }
           attempts.delete(address);
@@ -437,7 +547,10 @@ export function createAdmin({
         }
         if (req.method === 'POST') {
           const task = async () => {
-            const data = session.drafts?.[sectionKey] || (await content());
+            let data = await content();
+            const draft = session.drafts?.[sectionKey];
+            if (draft)
+              data = applyDraft(sections[sectionKey].schema, data, draft);
             const schema = sections[sectionKey].schema;
             const allowed = validFields(schema, data);
             for (const key of form.keys())
@@ -464,11 +577,13 @@ export function createAdmin({
               await publisher(
                 relative(repository, contentFile),
                 'Update',
-                repository
+                repository,
+                execute
               );
             } catch (error) {
+              if (publisher === publish) throw error;
               return send(
-                `<h1>发布失败</h1><p class="notice" role="alert">已保存到磁盘，但发布失败：${escape(error.message)} ${escape(error.stderr || '')}</p>`,
+                `<h1>发布失败</h1><p class="notice" role="alert">已保存到磁盘，但发布失败：${escape(redact(error.message))} ${escape(redact(error.stderr))}</p>`,
                 502
               );
             }
@@ -480,7 +595,9 @@ export function createAdmin({
                   : '已保存，正在发布，约 1 分钟后线上更新';
             return redirect(url.pathname);
           };
-          const pending = queue.then(task);
+          const pending = queue.then(() =>
+            form.has('operation') ? task() : transaction(task)
+          );
           queue = pending.catch(() => {});
           await pending;
           return;
@@ -520,7 +637,7 @@ export function createAdmin({
         req.method === 'POST' &&
         ['/save', '/delete'].includes(url.pathname)
       ) {
-        const task = async () => {
+        const task = async (onRollback = () => {}) => {
           let file = form.get('file');
           let post;
           if (url.pathname === '/save') {
@@ -559,6 +676,13 @@ export function createAdmin({
               file = `${post.date}-${slug}-${randomBytes(4).toString('hex')}.md`;
             }
             const path = await safeFile(file);
+            if (!form.get('file'))
+              onRollback(async error => {
+                if (error.code !== 'EEXIST')
+                  await unlink(path).catch(e => {
+                    if (e.code !== 'ENOENT') throw e;
+                  });
+              });
             const frontmatter = ['title', 'summary', 'date', 'group']
               .map(k => `${k}: ${JSON.stringify(post[k])}`)
               .join('\n');
@@ -572,18 +696,22 @@ export function createAdmin({
             await publisher(
               relative(repository, resolve(directory, file)),
               url.pathname === '/save' ? 'Update' : 'Delete',
-              repository
+              repository,
+              execute
             );
           } catch (error) {
+            if (publisher === publish) {
+              throw error;
+            }
             return send(
               url.pathname === '/save'
                 ? editor(
                     { ...post, file },
                     session.csrf,
-                    `文章已保存到磁盘，但发布失败：${error.message} ${error.stderr || ''}`,
+                    `文章已保存到磁盘，但发布失败：${redact(error.message)} ${redact(error.stderr)}`,
                     (await list()).map(p => p.group)
                   )
-                : `<h1>发布失败</h1><p class="notice error" role="alert">文章已从磁盘删除，但发布失败：${escape(error.message)} ${escape(error.stderr || '')}</p><a href="/posts">返回文章列表</a>`,
+                : `<h1>发布失败</h1><p class="notice error" role="alert">文章已从磁盘删除，但发布失败：${escape(redact(error.message))} ${escape(redact(error.stderr))}</p><a href="/posts">返回文章列表</a>`,
               502
             );
           }
@@ -595,7 +723,7 @@ export function createAdmin({
                 : '已保存，正在发布，约 1 分钟后线上更新';
           return redirect('/posts');
         };
-        const pending = queue.then(task);
+        const pending = queue.then(() => transaction(task));
         queue = pending.catch(() => {});
         await pending;
         return;
@@ -603,7 +731,7 @@ export function createAdmin({
       send('页面不存在。', 404);
     } catch (error) {
       send(
-        '<h1>操作未完成</h1><p class="notice error" role="alert">无法读取或保存文章，请检查文件名、文章格式及目录权限。</p><a href="/posts">返回文章列表</a>',
+        `<h1>操作未完成</h1><p class="notice error" role="alert">${escape(redact(error.message))}</p><a href="/posts">返回文章列表</a>`,
         400
       );
     }
@@ -624,8 +752,10 @@ if (
   } else {
     await mkdir(resolve(root, 'src/content/blog'), { recursive: true });
     const server = createAdmin({ password: process.env.ADMIN_PASSWORD });
-    server.listen(Number(process.env.PORT || 8787), '0.0.0.0', () =>
-      console.log('网站管理服务已启动。')
+    server.listen(
+      Number(process.env.PORT || 8787),
+      process.env.HOST || '0.0.0.0',
+      () => console.log('网站管理服务已启动。')
     );
   }
 }

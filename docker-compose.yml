@@ -1,0 +1,11 @@
+services:
+  admin:
+    build: .
+    env_file: .env
+    ports:
+      - '${PORT:-8787}:${PORT:-8787}'
+    volumes:
+      - site-checkout:/data/site
+    restart: unless-stopped
+volumes:
+  site-checkout:
